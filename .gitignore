@@ -1,10 +1,15 @@
-# OS junk
-.DS_Store
-Thumbs.db
-
-# VS Code
-.vscode/
+build/
+.gradle/
+runs/
+run/
 *.log
-
-# Minecraft local cache (if any)
-.beet/
+*. access
+bin/
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+.vscode/
+.DS_Store
+*.class
