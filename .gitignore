@@ -1,0 +1,10 @@
+# OS junk
+.DS_Store
+Thumbs.db
+
+# VS Code
+.vscode/
+*.log
+
+# Minecraft local cache (if any)
+.beet/
