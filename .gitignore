@@ -13,3 +13,4 @@ out/
 .vscode/
 .DS_Store
 *.class
+!/.agent/

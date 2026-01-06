@@ -28,12 +28,32 @@ public class MarketBoardScreen extends AbstractContainerScreen<MarketBoardMenu> 
     private net.minecraft.client.gui.components.Button cancelBuyButton;
     private boolean isBuyMode = false;
     private com.daigo.marketboard.market.MarketListing selectedListing;
+    private MarketListingList listingList;
+
+    public void setSelectedListing(com.daigo.marketboard.market.MarketListing listing) {
+        this.selectedListing = listing;
+        this.isBuyMode = true;
+        updateWidgetVisibility();
+        net.minecraft.client.Minecraft.getInstance().player
+                .playSound(net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), 1.0F, 1.0F);
+    }
 
     @Override
     protected void init() {
         super.init();
         int startX = this.leftPos;
         int startY = this.topPos;
+
+        // Initialize Scrollable List
+        // Position: x, y, width, height, y_position, itemHeight
+        this.listingList = new MarketListingList(this, this.minecraft, 160, 60, startY + 18, 24); // 24 = item height
+        this.listingList.setX(startX + 8);
+        this.listingList.setY(startY + 18); // Explicitly set Y (NeoForge 1.21 optional but safer)
+
+        this.addRenderableWidget(this.listingList);
+
+        // Initial population
+        this.listingList.updateList(ClientMarketData.getInstance().getListings());
 
         // "Sell Item" Mode Toggle Button - MOVED TO HEADER to avoid overlap
         this.sellButton = this.addRenderableWidget(
@@ -132,6 +152,11 @@ public class MarketBoardScreen extends AbstractContainerScreen<MarketBoardMenu> 
         this.confirmBuyButton.visible = isBuyMode;
         this.cancelBuyButton.visible = isBuyMode;
 
+        // List Visibility
+        if (this.listingList != null) {
+            this.listingList.visible = !isSellMode && !isBuyMode;
+        }
+
         // Always visible
         this.closeButton.visible = true;
     }
@@ -144,6 +169,13 @@ public class MarketBoardScreen extends AbstractContainerScreen<MarketBoardMenu> 
 
     @Override
     public void render(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTick) {
+        // ALWAYS update the list from data (in case sync happened)
+        // In a real optimized scenario, we would only update on event, but for now this
+        // ensures sync.
+        if (this.listingList != null) {
+            this.listingList.updateList(ClientMarketData.getInstance().getListings());
+        }
+
         super.render(guiGraphics, mouseX, mouseY, partialTick);
         this.renderTooltip(guiGraphics, mouseX, mouseY);
 
@@ -211,33 +243,6 @@ public class MarketBoardScreen extends AbstractContainerScreen<MarketBoardMenu> 
 
             guiGraphics.pose().popPose(); // Overlay
 
-        } else {
-            // Render Market List
-            int startX = this.leftPos + 8;
-            int startY = this.topPos + 18;
-            int rowHeight = 20;
-
-            java.util.List<com.daigo.marketboard.market.MarketListing> listings = ClientMarketData.getInstance()
-                    .getListings();
-
-            for (int i = 0; i < Math.min(listings.size(), 3); i++) {
-                com.daigo.marketboard.market.MarketListing listing = listings.get(i);
-                int y = startY + (i * rowHeight);
-
-                // Render Item
-                guiGraphics.renderItem(listing.item(), startX, y);
-                guiGraphics.renderItemDecorations(this.font, listing.item(), startX, y);
-
-                // Render Info
-                String text = listing.item().getHoverName().getString() + " - " + listing.price() + "G - "
-                        + listing.sellerName();
-                guiGraphics.drawString(this.font, text, startX + 20, y + 4, 4210752, false);
-
-                // Hover Highlight
-                if (mouseX >= startX && mouseX <= startX + 160 && mouseY >= y && mouseY < y + rowHeight) {
-                    guiGraphics.fill(startX, y, startX + 160, y + rowHeight, 0x80FFFFFF);
-                }
-            }
         }
     }
 
@@ -257,8 +262,9 @@ public class MarketBoardScreen extends AbstractContainerScreen<MarketBoardMenu> 
     protected void renderLabels(GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (!isSellMode && !isBuyMode) {
             guiGraphics.drawString(this.font, this.title, this.titleLabelX, this.titleLabelY, 4210752, false);
-            guiGraphics.drawString(this.font, this.playerInventoryTitle, this.inventoryLabelX, this.inventoryLabelY,
-                    4210752, false);
+            // Removing Inventory Title to prevent overlap with Scrollable List
+            // guiGraphics.drawString(this.font, this.playerInventoryTitle,
+            // this.inventoryLabelX, this.inventoryLabelY, 4210752, false);
         }
     }
 
@@ -294,26 +300,10 @@ public class MarketBoardScreen extends AbstractContainerScreen<MarketBoardMenu> 
             return true; // Block other clicks
         }
 
-        // Market List Interactions (Select Logic)
-        int startX = this.leftPos + 8;
-        int startY = this.topPos + 18;
-        int rowHeight = 20;
-        int maxRows = 3;
-
-        java.util.List<com.daigo.marketboard.market.MarketListing> listings = ClientMarketData.getInstance()
-                .getListings();
-
-        for (int i = 0; i < Math.min(listings.size(), maxRows); i++) {
-            int y = startY + (i * rowHeight);
-            if (mouseX >= startX && mouseX <= startX + 160 && mouseY >= y && mouseY < y + rowHeight) {
-                // Enter Buy Mode instead of sending packet immediately
-                this.selectedListing = listings.get(i);
-                this.isBuyMode = true;
-                updateWidgetVisibility();
-                net.minecraft.client.Minecraft.getInstance().player
-                        .playSound(net.minecraft.sounds.SoundEvents.UI_BUTTON_CLICK.value(), 1.0F, 1.0F);
-                return true;
-            }
+        // Pass to list (handled by addRenderableWidget but good to be explicit
+        // priority)
+        if (this.listingList != null && this.listingList.isMouseOver(mouseX, mouseY)) {
+            return this.listingList.mouseClicked(mouseX, mouseY, button);
         }
 
         return super.mouseClicked(mouseX, mouseY, button);
